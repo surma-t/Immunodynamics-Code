@@ -1,0 +1,582 @@
+---
+title: "3epitope-model-data"
+author: "Surma Talapatra"
+date: "April 28, 2017"
+output:
+    pdf_document: default
+---
+
+
+
+```{r packages, eval=T, echo=F, message=F, cache=TRUE, include=FALSE}
+require(deSolve)
+rm(list=ls())  #remove all the variables from the workspace
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r parameters, eval=T, echo=TRUE, message=F, cache=TRUE, include=TRUE}
+
+#set the number of epitopes, state (antigen) variables : n,v
+n=3
+v <- 2^n 
+#source the getode_functions.R and getode.R 
+source('~/Dropbox/R Surma/getode_phi_k/getode_functions.R')
+source('~/Dropbox/R Surma/getode_phi_k/getode.R')
+library(deSolve)
+#print("input y in this order")
+ny=ynames(n)
+print(ynames(n))
+#Input parameters here - parameters for EMM model
+p <- c(df=0.5,db=0.5,s=1,a=0.1,da=0.1,alpha=0,delta=0)  
+#Input vector for k = antibody affinity
+kvec <- c(rep(0.01,n))
+#Input vector for phi for B cell equation
+phivec <- c(rep(100,n))
+
+
+
+#Input beta matrix parameters here
+betamat <- matrix(0,n,n)
+betamat[row(betamat)==1]=c(1,0.99,0.1)
+betamat[row(betamat)==2]=c(0.99,1,0.99)
+betamat[row(betamat)==3]=c(0.1,0.99,1)
+betamat[row(betamat)==col(betamat)]=1
+betamat
+
+#Changing Parameters :
+#Change k and phi
+#f=5
+#kvec <- c(0.01,0.01*f,0.01)
+#phivec <- c(100,100/f,100)
+
+#Change initial Antibody and B cell concentration
+#y <- c(10000,rep(0,(v-1)),c(1,10,1),c(1,10,1))
+
+#Change df, db, s, a, da
+#p <- c(df=0.5,db=0.5,s=1,a=0.1,da=0.1,alpha=0,delta=0)  
+
+```
+
+
+```{r runode-Control - 3E, eval=T, echo=T,fig=T, cache=TRUE, warning=FALSE}
+
+
+#Input beta matrix parameters here
+betamat <- matrix(0,n,n)
+betamat[row(betamat)==1]=c(1,0.0,0.00)
+betamat[row(betamat)==2]=c(0.0,1,0.0)
+betamat[row(betamat)==3]=c(0.0,0.0,1)
+betamat[row(betamat)==col(betamat)]=1
+
+#Primary Immunization
+#input time vector, y vector
+t <- seq(0,100,by=0.1)
+y <- c(10000,rep(0,(v-1)),rep(1,n),rep(1,n)) 
+names(y) = ynames(n)
+#func1 : getode returns myfunc(t,y,p) for ode
+#rootHf : generates root function for n
+#eventHf : generates eventfunction for n
+func1 <- getode(n,t,y,p,kvec,phivec,betamat)
+rootHf <- rHf(n,t,y,p)
+eventHf <- eHf(n,t,y,p)
+#run ode for primary immunization - 1st immunization
+out.1 <- ode(y=y,times=t,func=func1,parms=p,rootfunc=rootHf, 
+             events=list(func=eventHf,root=TRUE))
+
+
+
+# 2nd immunization
+#y : end values of primary immunization
+y <- c(10000,rep(0,(v-1)),out.1[1001,(v+2)],out.1[1001,(v+3)],
+       out.1[1001,(v+4)],out.1[1001,(v+5)],out.1[1001,(v+6)],
+       out.1[1001,(v+7)]) 
+names(y) = ynames(n)
+func1 <- getode(n,t,y,p,kvec,phivec,betamat)
+rootHf <- rHf(n,t,y,p)
+eventHf <- eHf(n,t,y,p)
+#start at the end of last immunization
+t <- seq(100,200,by=0.1)
+#run ode for 2nd immunization 
+out.2 <- ode(y=y,times=t,func=func1,parms=p,rootfunc=rootHf, 
+             events=list(func=eventHf,root=TRUE))
+out.c <- rbind(out.1,out.2)
+#plot
+count.c <- (out.2[,13:15])
+barplot(count.c[1001,], col = "blue")
+title(main="Control")
+
+```
+
+
+
+```{r Reimmunization-3E, eval=T, echo=T,fig=T, cache=TRUE, warning=FALSE}
+
+betamat <- matrix(0,n,n)
+betamat[row(betamat)==1]=c(1,0.99,0.1)
+betamat[row(betamat)==2]=c(0.99,1,0.99)
+betamat[row(betamat)==3]=c(0.1,0.99,1)
+betamat[row(betamat)==col(betamat)]=1
+betamat
+
+
+#Primary Immunization
+#input time vector, y vector
+t <- seq(0,100,by=0.1)
+y <- c(10000,rep(0,(v-1)),rep(1,n),rep(1,n)) 
+names(y) = ynames(n)
+func1 <- getode(n,t,y,p,kvec,phivec,betamat)
+rootHf <- rHf(n,t,y,p)
+eventHf <- eHf(n,t,y,p)
+#run ode for primary immunization - 1st immunization
+out.1 <- ode(y=y,times=t,func=func1,parms=p,rootfunc=rootHf, 
+             events=list(func=eventHf,root=TRUE))
+
+#barplot
+count.1 <- (out.1[,13:15])
+barplot(count.1[1001,],col="blue")
+title(main="1st Immunization")
+
+
+# 2nd immunization
+#y : end values of primary immunization
+y <- c(10000,rep(0,(v-1)),out.1[1001,(v+2)],out.1[1001,(v+3)],
+       out.1[1001,(v+4)],out.1[1001,(v+5)],out.1[1001,(v+6)],
+       out.1[1001,(v+7)]) 
+names(y) = ynames(n)
+t <- seq(100,200,by=0.1)
+func1 <- getode(n,t,y,p,kvec,phivec,betamat)
+rootHf <- rHf(n,t,y,p)
+eventHf <- eHf(n,t,y,p)
+#run ode for 2nd immunization 
+out.2 <- ode(y=y,times=t,func=func1,parms=p,rootfunc=rootHf, 
+             events=list(func=eventHf,root=TRUE))
+
+#barplot
+count.2 <- (out.2[,13:15])
+barplot(count.2[1001,], col = "blue")
+title(main="2nd Immunization")
+
+out <- rbind(out.1,out.2)
+
+#plot
+plot(out[,"time"],out[,"A1"]+out[,"y1"]+out[,"y12"]+out[,"y13"]+out[,"y123"],
+     type="l",bty="n",log="y",col="black",lty=1,ylim=c(1e+00,1e+05),ylab="Concentration",xlab="Time")
+lines(out[,"time"],out[,"A2"]+out[,"y2"]+out[,"y12"]+out[,"y23"]+out[,"y123"],
+      type="l",bty="n",col="blue",lty=1,ylim=c(1e+00,1e+05))
+lines(out[,"time"],out[,"A3"]+out[,"y3"]+out[,"y13"]+out[,"y23"]+out[,"y123"],
+      type="l",bty="n",col="red",lty=1,ylim=c(1e+00,1e+05))
+lines(out.c[,"time"],out.c[,"A1"]+out.c[,"y1"]+out.c[,"y12"]+out.c[,"y13"]+out.c[,"y123"],
+      type="l",bty="n",col="green",lty=1,ylim=c(1e+00,1e+05))
+legend("topleft",legend=c("Total A1","Total A2","Total A3", "Control"), cex=0.8,
+       col=c("black","blue","red","green"),lty=c(1,1,1,1), lwd=2, bty="n")
+title(main="A After Immunization")
+
+
+```
+
+
+```{r Multiple Immunizations-3E-Control, eval=T, echo=T,fig=T, cache=TRUE, warning=FALSE}
+
+
+#Input beta matrix parameters here
+betamat <- matrix(0,n,n)
+betamat[row(betamat)==1]=c(1,0.0,0.00)
+betamat[row(betamat)==2]=c(0.0,1,0.0)
+betamat[row(betamat)==3]=c(0.0,0.0,1)
+betamat[row(betamat)==col(betamat)]=1
+
+#Primary Immunization
+#input time vector, y vector
+t <- seq(0,100,by=0.1)
+y <- c(10000,rep(0,(v-1)),rep(1,n),rep(1,n)) 
+names(y) = ynames(n)
+func1 <- getode(n,t,y,p,kvec,phivec,betamat)
+rootHf <- rHf(n,t,y,p)
+eventHf <- eHf(n,t,y,p)
+#run ode for primary immunization - 1st immunization
+out.1 <- ode(y=y,times=t,func=func1,parms=p,rootfunc=rootHf, 
+             events=list(func=eventHf,root=TRUE))
+
+
+# 2nd immunization
+#y : end values of primary immunization
+y <- c(10000,rep(0,(v-1)),out.1[1001,(v+2)],out.1[1001,(v+3)],
+       out.1[1001,(v+4)],out.1[1001,(v+5)],out.1[1001,(v+6)],
+       out.1[1001,(v+7)]) 
+names(y) = ynames(n)
+t <- seq(100,200,by=0.1)
+func1 <- getode(n,t,y,p,kvec,phivec,betamat)
+rootHf <- rHf(n,t,y,p)
+eventHf <- eHf(n,t,y,p)
+#run ode for 2nd immunization 
+out.2 <- ode(y=y,times=t,func=func1,parms=p,rootfunc=rootHf, 
+             events=list(func=eventHf,root=TRUE))
+
+
+# 3rd immunization
+#y : end values of primary immunization
+y <- c(10000,rep(0,(v-1)),out.2[1001,(v+2)],out.2[1001,(v+3)],
+       out.2[1001,(v+4)],out.2[1001,(v+5)],out.2[1001,(v+6)],
+       out.2[1001,(v+7)]) 
+names(y) = ynames(n)
+t <- seq(200,300,by=0.1)
+func1 <- getode(n,t,y,p,kvec,phivec,betamat)
+rootHf <- rHf(n,t,y,p)
+eventHf <- eHf(n,t,y,p)
+#run ode for 3rd immunization 
+out.3 <- ode(y=y,times=t,func=func1,parms=p,rootfunc=rootHf, 
+             events=list(func=eventHf,root=TRUE))
+
+
+# 4th immunization
+#y : end values of primary immunization
+y <- c(10000,rep(0,(v-1)),out.3[1001,(v+2)],out.3[1001,(v+3)],
+       out.3[1001,(v+4)],out.3[1001,(v+5)],out.3[1001,(v+6)],
+       out.3[1001,(v+7)]) 
+names(y) = ynames(n)
+t <- seq(300,400,by=0.1)
+func1 <- getode(n,t,y,p,kvec,phivec,betamat)
+rootHf <- rHf(n,t,y,p)
+eventHf <- eHf(n,t,y,p)
+#run ode for 4th immunization 
+out.4 <- ode(y=y,times=t,func=func1,parms=p,rootfunc=rootHf, 
+             events=list(func=eventHf,root=TRUE))
+
+# 5th immunization
+#y : end values of primary immunization
+y <- c(10000,rep(0,(v-1)),out.4[1001,(v+2)],out.4[1001,(v+3)],
+       out.4[1001,(v+4)],out.4[1001,(v+5)],out.4[1001,(v+6)],
+       out.4[1001,(v+7)]) 
+names(y) = ynames(n)
+t <- seq(400,500,by=0.1)
+func1 <- getode(n,t,y,p,kvec,phivec,betamat)
+rootHf <- rHf(n,t,y,p)
+eventHf <- eHf(n,t,y,p)
+#run ode for 5th immunization 
+out.5 <- ode(y=y,times=t,func=func1,parms=p,rootfunc=rootHf, 
+             events=list(func=eventHf,root=TRUE))
+
+
+# 6th immunization
+#y : end values of primary immunization
+y <- c(10000,rep(0,(v-1)),out.5[1001,(v+2)],out.5[1001,(v+3)],
+       out.5[1001,(v+4)],out.5[1001,(v+5)],out.5[1001,(v+6)],
+       out.5[1001,(v+7)]) 
+names(y) = ynames(n)
+t <- seq(500,600,by=0.1)
+func1 <- getode(n,t,y,p,kvec,phivec,betamat)
+rootHf <- rHf(n,t,y,p)
+eventHf <- eHf(n,t,y,p)
+#run ode for 6th immunization 
+out.6 <- ode(y=y,times=t,func=func1,parms=p,rootfunc=rootHf, 
+             events=list(func=eventHf,root=TRUE))
+
+
+
+# 7th immunization
+#y : end values of primary immunization
+y <- c(10000,rep(0,(v-1)),out.6[1001,(v+2)],out.6[1001,(v+3)],
+       out.6[1001,(v+4)],out.6[1001,(v+5)],out.6[1001,(v+6)],
+       out.6[1001,(v+7)]) 
+names(y) = ynames(n)
+t <- seq(600,700,by=0.1)
+func1 <- getode(n,t,y,p,kvec,phivec,betamat)
+rootHf <- rHf(n,t,y,p)
+eventHf <- eHf(n,t,y,p)
+#run ode for 7th immunization 
+out.7 <- ode(y=y,times=t,func=func1,parms=p,rootfunc=rootHf, 
+             events=list(func=eventHf,root=TRUE))
+
+
+# 8th immunization
+#y : end values of primary immunization
+y <- c(10000,rep(0,(v-1)),out.7[1001,(v+2)],out.7[1001,(v+3)],
+       out.7[1001,(v+4)],out.7[1001,(v+5)],out.7[1001,(v+6)],
+       out.7[1001,(v+7)]) 
+names(y) = ynames(n)
+t <- seq(700,800,by=0.1)
+func1 <- getode(n,t,y,p,kvec,phivec,betamat)
+rootHf <- rHf(n,t,y,p)
+eventHf <- eHf(n,t,y,p)
+#run ode for 8th immunization 
+out.8 <- ode(y=y,times=t,func=func1,parms=p,rootfunc=rootHf, 
+             events=list(func=eventHf,root=TRUE))
+
+
+
+# 9th immunization
+#y : end values of primary immunization
+y <- c(10000,rep(0,(v-1)),out.8[1001,(v+2)],out.8[1001,(v+3)],
+       out.8[1001,(v+4)],out.8[1001,(v+5)],out.8[1001,(v+6)],
+       out.8[1001,(v+7)]) 
+names(y) = ynames(n)
+t <- seq(800,900,by=0.1)
+func1 <- getode(n,t,y,p,kvec,phivec,betamat)
+rootHf <- rHf(n,t,y,p)
+eventHf <- eHf(n,t,y,p)
+#run ode for 9th immunization 
+out.9 <- ode(y=y,times=t,func=func1,parms=p,rootfunc=rootHf, 
+             events=list(func=eventHf,root=TRUE))
+
+
+
+# 10th immunization
+#y : end values of primary immunization
+y <- c(10000,rep(0,(v-1)),out.9[1001,(v+2)],out.9[1001,(v+3)],
+       out.9[1001,(v+4)],out.9[1001,(v+5)],out.9[1001,(v+6)],
+       out.9[1001,(v+7)]) 
+names(y) = ynames(n)
+t <- seq(900,1000,by=0.1)
+func1 <- getode(n,t,y,p,kvec,phivec,betamat)
+rootHf <- rHf(n,t,y,p)
+eventHf <- eHf(n,t,y,p)
+#run ode for 10th immunization 
+out.10 <- ode(y=y,times=t,func=func1,parms=p,rootfunc=rootHf, 
+             events=list(func=eventHf,root=TRUE))
+
+control.file <- c(out.1[1001,15],out.2[1001,15],out.3[1001,15],out.4[1001,15],
+                  out.5[1001,15],out.6[1001,15],out.7[1001,15],out.8[1001,15],
+                  out.9[1001,15],out.10[1001,15])
+
+names(control.file) <- rep("C",10)
+```
+
+
+
+
+
+```{r Multiple Immunizations-3E, eval=T, echo=T,fig=T, cache=TRUE, warning=FALSE}
+
+
+betamat <- matrix(0,n,n)
+betamat[row(betamat)==1]=c(1,0.99,0.1)
+betamat[row(betamat)==2]=c(0.99,1,0.99)
+betamat[row(betamat)==3]=c(0.1,0.99,1)
+betamat[row(betamat)==col(betamat)]=1
+betamat
+
+
+#Primary Immunization
+#input time vector, y vector
+t <- seq(0,100,by=0.1)
+y <- c(10000,rep(0,(v-1)),rep(1,n),rep(1,n)) 
+names(y) = ynames(n)
+func1 <- getode(n,t,y,p,kvec,phivec,betamat)
+rootHf <- rHf(n,t,y,p)
+eventHf <- eHf(n,t,y,p)
+#run ode for primary immunization - 1st immunization
+out.1 <- ode(y=y,times=t,func=func1,parms=p,rootfunc=rootHf, 
+             events=list(func=eventHf,root=TRUE))
+#barplot
+count.1 <- (out.1[,13:15])
+barplot(count.1[1001,],col="blue")
+title(main="1st Immunization")
+
+
+# 2nd immunization
+#y : end values of primary immunization
+y <- c(10000,rep(0,(v-1)),out.1[1001,(v+2)],out.1[1001,(v+3)],
+       out.1[1001,(v+4)],out.1[1001,(v+5)],out.1[1001,(v+6)],
+       out.1[1001,(v+7)]) 
+names(y) = ynames(n)
+t <- seq(100,200,by=0.1)
+func1 <- getode(n,t,y,p,kvec,phivec,betamat)
+rootHf <- rHf(n,t,y,p)
+eventHf <- eHf(n,t,y,p)
+#run ode for 2nd immunization 
+out.2 <- ode(y=y,times=t,func=func1,parms=p,rootfunc=rootHf, 
+             events=list(func=eventHf,root=TRUE))
+#barplot
+count.2 <- (out.2[,13:15])
+barplot(count.2[1001,], col = "blue")
+title(main="2nd Immunization")
+
+# 3rd immunization
+#y : end values of primary immunization
+y <- c(10000,rep(0,(v-1)),out.2[1001,(v+2)],out.2[1001,(v+3)],
+       out.2[1001,(v+4)],out.2[1001,(v+5)],out.2[1001,(v+6)],
+       out.2[1001,(v+7)]) 
+names(y) = ynames(n)
+t <- seq(200,300,by=0.1)
+func1 <- getode(n,t,y,p,kvec,phivec,betamat)
+rootHf <- rHf(n,t,y,p)
+eventHf <- eHf(n,t,y,p)
+#run ode for 3rd immunization 
+out.3 <- ode(y=y,times=t,func=func1,parms=p,rootfunc=rootHf, 
+             events=list(func=eventHf,root=TRUE))
+#barplot
+count.3 <- (out.3[,13:15])
+barplot(count.3[1001,], col = "blue")
+title(main="3rd Immunization")
+
+
+
+# 4th immunization
+#y : end values of primary immunization
+y <- c(10000,rep(0,(v-1)),out.3[1001,(v+2)],out.3[1001,(v+3)],
+       out.3[1001,(v+4)],out.3[1001,(v+5)],out.3[1001,(v+6)],
+       out.3[1001,(v+7)]) 
+names(y) = ynames(n)
+t <- seq(300,400,by=0.1)
+func1 <- getode(n,t,y,p,kvec,phivec,betamat)
+rootHf <- rHf(n,t,y,p)
+eventHf <- eHf(n,t,y,p)
+#run ode for 4th immunization 
+out.4 <- ode(y=y,times=t,func=func1,parms=p,rootfunc=rootHf, 
+             events=list(func=eventHf,root=TRUE))
+#barplot
+count.4 <- (out.4[,13:15])
+barplot(count.4[1001,], col = "blue")
+title(main="4th Immunization")
+
+
+
+
+# 5th immunization
+#y : end values of primary immunization
+y <- c(10000,rep(0,(v-1)),out.4[1001,(v+2)],out.4[1001,(v+3)],
+       out.4[1001,(v+4)],out.4[1001,(v+5)],out.4[1001,(v+6)],
+       out.4[1001,(v+7)]) 
+names(y) = ynames(n)
+t <- seq(400,500,by=0.1)
+func1 <- getode(n,t,y,p,kvec,phivec,betamat)
+rootHf <- rHf(n,t,y,p)
+eventHf <- eHf(n,t,y,p)
+#run ode for 5th immunization 
+out.5 <- ode(y=y,times=t,func=func1,parms=p,rootfunc=rootHf, 
+             events=list(func=eventHf,root=TRUE))
+#barplot
+count.5 <- (out.5[,13:15])
+barplot(count.5[1001,], col = "blue")
+title(main="5th Immunization")
+
+
+
+
+
+# 6th immunization
+#y : end values of primary immunization
+y <- c(10000,rep(0,(v-1)),out.5[1001,(v+2)],out.5[1001,(v+3)],
+       out.5[1001,(v+4)],out.5[1001,(v+5)],out.5[1001,(v+6)],
+       out.5[1001,(v+7)]) 
+names(y) = ynames(n)
+t <- seq(500,600,by=0.1)
+func1 <- getode(n,t,y,p,kvec,phivec,betamat)
+rootHf <- rHf(n,t,y,p)
+eventHf <- eHf(n,t,y,p)
+#run ode for 6th immunization 
+out.6 <- ode(y=y,times=t,func=func1,parms=p,rootfunc=rootHf, 
+             events=list(func=eventHf,root=TRUE))
+#barplot
+count.6 <- (out.6[,13:15])
+barplot(count.6[1001,], col = "blue")
+title(main="6th Immunization")
+
+
+
+# 7th immunization
+#y : end values of primary immunization
+y <- c(10000,rep(0,(v-1)),out.6[1001,(v+2)],out.6[1001,(v+3)],
+       out.6[1001,(v+4)],out.6[1001,(v+5)],out.6[1001,(v+6)],
+       out.6[1001,(v+7)]) 
+names(y) = ynames(n)
+t <- seq(600,700,by=0.1)
+func1 <- getode(n,t,y,p,kvec,phivec,betamat)
+rootHf <- rHf(n,t,y,p)
+eventHf <- eHf(n,t,y,p)
+#run ode for 7th immunization 
+out.7 <- ode(y=y,times=t,func=func1,parms=p,rootfunc=rootHf, 
+             events=list(func=eventHf,root=TRUE))
+#barplot
+count.7 <- (out.7[,13:15])
+barplot(count.7[1001,], col = "blue")
+title(main="7th Immunization")
+
+
+
+# 8th immunization
+#y : end values of primary immunization
+y <- c(10000,rep(0,(v-1)),out.7[1001,(v+2)],out.7[1001,(v+3)],
+       out.7[1001,(v+4)],out.7[1001,(v+5)],out.7[1001,(v+6)],
+       out.7[1001,(v+7)]) 
+names(y) = ynames(n)
+t <- seq(700,800,by=0.1)
+func1 <- getode(n,t,y,p,kvec,phivec,betamat)
+rootHf <- rHf(n,t,y,p)
+eventHf <- eHf(n,t,y,p)
+#run ode for 8th immunization 
+out.8 <- ode(y=y,times=t,func=func1,parms=p,rootfunc=rootHf, 
+             events=list(func=eventHf,root=TRUE))
+#barplot
+count.8 <- (out.8[,13:15])
+barplot(count.8[1001,], col = "blue")
+title(main="8th Immunization")
+
+
+
+# 9th immunization
+#y : end values of primary immunization
+y <- c(10000,rep(0,(v-1)),out.8[1001,(v+2)],out.8[1001,(v+3)],
+       out.8[1001,(v+4)],out.8[1001,(v+5)],out.8[1001,(v+6)],
+       out.8[1001,(v+7)]) 
+names(y) = ynames(n)
+t <- seq(800,900,by=0.1)
+func1 <- getode(n,t,y,p,kvec,phivec,betamat)
+rootHf <- rHf(n,t,y,p)
+eventHf <- eHf(n,t,y,p)
+#run ode for 9th immunization 
+out.9 <- ode(y=y,times=t,func=func1,parms=p,rootfunc=rootHf, 
+             events=list(func=eventHf,root=TRUE))
+#barplot
+count.9 <- (out.9[,13:15])
+barplot(count.9[1001,], col = "blue")
+title(main="9th Immunization")
+
+
+# 10th immunization
+#y : end values of primary immunization
+y <- c(10000,rep(0,(v-1)),out.9[1001,(v+2)],out.9[1001,(v+3)],
+       out.9[1001,(v+4)],out.9[1001,(v+5)],out.9[1001,(v+6)],
+       out.9[1001,(v+7)]) 
+names(y) = ynames(n)
+t <- seq(900,1000,by=0.1)
+func1 <- getode(n,t,y,p,kvec,phivec,betamat)
+rootHf <- rHf(n,t,y,p)
+eventHf <- eHf(n,t,y,p)
+#run ode for 10th immunization 
+out.10 <- ode(y=y,times=t,func=func1,parms=p,rootfunc=rootHf, 
+             events=list(func=eventHf,root=TRUE))
+#barplot
+count.10 <- (out.10[,13:15])
+barplot(count.10[1001,], col = "blue")
+title(main="10th Immunization")
+
+
+
+all.file <- rbind(out.1[1001,13:15],out.2[1001,13:15],out.3[1001,13:15],out.4[1001,13:15],
+                  out.5[1001,13:15],out.6[1001,13:15],out.7[1001,13:15],out.8[1001,13:15],
+                  out.9[1001,13:15],out.10[1001,13:15])
+
+
+
+
+#plot
+plot(1:10,all.file[,"A1"],
+     type="b",bty="n",col="black",lty=1,ylab="Antibody",xlab="Immunization",ylim = c(1e+00,6e+04))
+lines(1:10,all.file[,"A2"],
+      type="b",bty="n",col="blue",lty=1)
+lines(1:10,all.file[,"A3"],
+      type="b",bty="n",col="red",lty=2)
+lines(1:10,control.file,
+      type="b",bty="n",col="green",lty=1)
+legend("topleft",legend=c("A1","A2","A3", "Control"), cex=0.8,
+       col=c("black","blue","red","green"),lty=c(1,1,2,1), lwd=2, bty="n")
+title(main="Total Antibody")
+
+
+```
+
+
+
+
